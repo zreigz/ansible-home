@@ -1,9 +1,26 @@
-- hosts: localhost
-  connection: local
-  gather_facts: false
+- name: Show network information
+  hosts: servers
+  become: false
+  gather_facts: true
 
   tasks:
-    - name: Test debug
+    - name: Show default IPv4 address
       debug:
-        msg: "Ansible is working!"
+        msg: "Default IPv4: {{ ansible_default_ipv4.address }}"
+
+    - name: Show all IPv4 addresses
+      debug:
+        var: ansible_all_ipv4_addresses
+
+    - name: Show network interfaces
+      debug:
+        var: ansible_interfaces
+
+    - name: Copy file to remote host
+      copy:
+        src: files/example.txt
+        dest: /tmp/example.txt
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0644'
 
