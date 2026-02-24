@@ -1,3 +1,14 @@
+- name: Prepare SSH key
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Write SSH private key
+      copy:
+        content: "{{ lookup('file', '/tmp/ssh-privatekey') }}"
+        dest: /tmp/ansible-key
+        mode: '0600'
+
 - name: Show network information
   hosts: servers
   become: false
