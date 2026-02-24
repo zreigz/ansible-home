@@ -8,6 +8,7 @@
         content: "{{ lookup('file', '/tmp/ssh-privatekey') }}"
         dest: /tmp/ansible-key
         mode: '0600'
+      check_mode: false
 
 - name: Show network information
   hosts: servers
