@@ -1,0 +1,130 @@
+---
+- name: Check ~/.ansible read/write permissions
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    ansible_home: "{{ lookup('env', 'HOME') }}/.ansible"
+    test_file: "{{ ansible_home }}/.rw_test"
+
+  tasks:
+    # ── Basic ~/.ansible rw ────────────────────────────────────────────────────
+
+    - name: Ensure ~/.ansible directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_home }}"
+        state: directory
+        mode: "0755"
+
+    - name: Write test file to ~/.ansible (write check)
+      ansible.builtin.copy:
+        content: "rw test ok\n"
+        dest: "{{ test_file }}"
+        mode: "0644"
+
+    - name: Read test file from ~/.ansible (read check)
+      ansible.builtin.slurp:
+        src: "{{ test_file }}"
+      register: read_result
+
+    - name: Assert file content is correct
+      ansible.builtin.assert:
+        that:
+          - "(read_result.content | b64decode) == 'rw test ok\n'"
+        success_msg: "~/.ansible is readable and writable"
+        fail_msg: "~/.ansible read/write check failed"
+
+    - name: Remove test file
+      ansible.builtin.file:
+        path: "{{ test_file }}"
+        state: absent
+
+    # ── ~/.ansible/tmp ─────────────────────────────────────────────────────────
+    # Ansible writes module scripts here before pushing them to remote hosts
+
+    - name: Ensure ~/.ansible/tmp exists
+      ansible.builtin.file:
+        path: "{{ ansible_home }}/tmp"
+        state: directory
+        mode: "0700"
+
+    - name: Write a file into ~/.ansible/tmp
+      ansible.builtin.copy:
+        content: "tmp test ok\n"
+        dest: "{{ ansible_home }}/tmp/.rw_test"
+        mode: "0600"
+
+    - name: Read file from ~/.ansible/tmp
+      ansible.builtin.slurp:
+        src: "{{ ansible_home }}/tmp/.rw_test"
+      register: tmp_result
+
+    - name: Assert ~/.ansible/tmp rw
+      ansible.builtin.assert:
+        that:
+          - "(tmp_result.content | b64decode) == 'tmp test ok\n'"
+        success_msg: "~/.ansible/tmp is readable and writable"
+        fail_msg: "~/.ansible/tmp read/write check failed"
+
+    - name: Remove ~/.ansible/tmp test file
+      ansible.builtin.file:
+        path: "{{ ansible_home }}/tmp/.rw_test"
+        state: absent
+
+    # ── ~/.ansible/cp ──────────────────────────────────────────────────────────
+    # Ansible stores SSH ControlPath multiplexing sockets here
+
+    - name: Ensure ~/.ansible/cp exists
+      ansible.builtin.file:
+        path: "{{ ansible_home }}/cp"
+        state: directory
+        mode: "0700"
+
+    - name: Write a file into ~/.ansible/cp
+      ansible.builtin.copy:
+        content: "cp test ok\n"
+        dest: "{{ ansible_home }}/cp/.rw_test"
+        mode: "0600"
+
+    - name: Read file from ~/.ansible/cp
+      ansible.builtin.slurp:
+        src: "{{ ansible_home }}/cp/.rw_test"
+      register: cp_result
+
+    - name: Assert ~/.ansible/cp rw
+      ansible.builtin.assert:
+        that:
+          - "(cp_result.content | b64decode) == 'cp test ok\n'"
+        success_msg: "~/.ansible/cp is readable and writable"
+        fail_msg: "~/.ansible/cp read/write check failed"
+
+    - name: Remove ~/.ansible/cp test file
+      ansible.builtin.file:
+        path: "{{ ansible_home }}/cp/.rw_test"
+        state: absent
+
+    # SSH ControlMaster requires the socket dir to be restrictive (not world-writable)
+    - name: Assert ~/.ansible/cp has mode 0700
+      ansible.builtin.stat:
+        path: "{{ ansible_home }}/cp"
+      register: cp_stat
+
+    - name: Fail if ~/.ansible/cp permissions are too open
+      ansible.builtin.assert:
+        that:
+          - cp_stat.stat.mode == '0700'
+        success_msg: "~/.ansible/cp has correct restrictive mode 0700"
+        fail_msg: "~/.ansible/cp mode is {{ cp_stat.stat.mode }}, expected 0700"
+
+    # ── Summary ────────────────────────────────────────────────────────────────
+
+    - name: Report result
+      ansible.builtin.debug:
+        msg:
+          - "All ~/.ansible rw checks passed for user '{{ lookup('env', 'USER') }}'"
+          - "  HOME       : {{ lookup('env', 'HOME') }}"
+          - "  ~/.ansible : {{ ansible_home }}"
+          - "  tmp        : {{ ansible_home }}/tmp"
+          - "  cp         : {{ ansible_home }}/cp"
+
